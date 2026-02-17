@@ -382,7 +382,7 @@ const fetchAllRecords = async (baseUrl) => {
     plants.filter(plant => 
       activeFilters.has(plant.primaryFuel) && 
       activeStates.has(plant.state) &&
-      activeBalancingAuthorities.has(plant.balancingAuthorityCode)
+      activeBalancingAuthorities.has(plant.balancingAuthorityName)
     ),
     [plants, activeFilters, activeStates, activeBalancingAuthorities]
   );
@@ -418,18 +418,25 @@ const fetchAllRecords = async (baseUrl) => {
     [uniqueStates, debouncedSearchTerm]
   );
 
-  // Get unique balancing authorities
-  const uniqueBalancingAuthorities = useMemo(() => 
-    [...new Set(plants.map(p => p.balancingAuthorityCode))]
-      .filter(ba => ba && ba !== 'Unknown' && ba !== 'N/A')
+  // Get unique balancing authorities sorted by total MW capacity
+  const uniqueBalancingAuthorities = useMemo(() => {
+    const baMW = {};
+    plants.forEach(p => {
+      if (p.balancingAuthorityName && 
+          p.balancingAuthorityName !== 'Unknown' && 
+          p.balancingAuthorityName !== 'N/A') {
+        baMW[p.balancingAuthorityName] = (baMW[p.balancingAuthorityName] || 0) + (p.totalCapacity || 0);
+      }
+    });
+    
+    return Object.entries(baMW)
       .sort((a, b) => {
-      // Put "Unlisted" at the end
-      if (a === 'Unlisted') return 1;
-      if (b === 'Unlisted') return -1;
-      return a.localeCompare(b);
-    }),
-    [plants]
-  );
+        if (a[0] === 'Unlisted') return 1;
+        if (b[0] === 'Unlisted') return -1;
+        return b[1] - a[1]; // Sort by MW descending
+      })
+      .map(([name]) => name);
+  }, [plants]);
 
   // Initialize BA filters (all selected by default)
   React.useEffect(() => {
